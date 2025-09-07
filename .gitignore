@@ -16,6 +16,11 @@ venv/
 # Output artifacts
 output/
 *.log
+*.pid
+*.pid.*
+logs/*.pid
+logs/**/*.gz
+output/**/*.gz
 
 # Secrets
 amazon_credentials.pyc
