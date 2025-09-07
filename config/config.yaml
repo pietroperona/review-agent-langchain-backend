@@ -1,0 +1,38 @@
+# Configurazione Amazon Review Audit Agent - POC
+# Copia questo file come config.yaml e personalizza i valori
+
+# === CONFIGURAZIONE GOOGLE SHEETS ===
+google_credentials: "/app/config/credentials.json"  # Path al file service account Google
+google_sheet_url: "https://docs.google.com/spreadsheets/d/1lJ0RSXxUOS-SsqHAyHyjR2b5z4EvszI96ynwiWyjZC8/edit"  # URL del foglio Google
+
+# === CONFIGURAZIONE OLLAMA ===
+ollama_url: "http://host.docker.internal:11434"  # URL Ollama locale su Mac
+ollama_model: "llama3.1:8b"  # Modello da usare (disponibile localmente)
+
+# === CONFIGURAZIONE LANGSMITH (OPZIONALE) ===
+langsmith_tracing: true  # Abilita tracing LangSmith
+langsmith_endpoint: "https://api.smith.langchain.com"
+langsmith_api_key: "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"  # La tua API key
+langsmith_project: "amazon-review-audit"  # Nome progetto LangSmith
+
+# === CONFIGURAZIONE SLACK (OPZIONALE) ===
+slack_webhook_url: ""  # Webhook URL per notifiche (lascia vuoto per disabilitare)
+
+# === PARAMETRI SCRAPING ===
+max_reviews: 20  # Numero massimo recensioni per ASIN
+delay_between_asins: 5  # Secondi di pausa tra ASIN diversi
+
+# === ESEMPIO STRUTTURA GOOGLE SHEET ===
+# Il foglio deve avere queste colonne nella prima riga (header):
+# ASIN | Nome Prodotto | Stato | Ultima Analisi | Rating Medio | Note
+#
+# Esempi ASIN per test:
+# B08N5WRWNW (Echo Dot)
+# B07XJ8C8F5 (Kindle Paperwhite)  
+# B084DWCZZ6 (Fire TV Stick)
+#
+# Stati possibili:
+# - "" (vuoto) o "In attesa": ASIN sarà processato
+# - "Elaborazione": In corso (aggiornato automaticamente)
+# - "Completato": Elaborazione finita
+# - "Errore": Problema durante l'elaborazione

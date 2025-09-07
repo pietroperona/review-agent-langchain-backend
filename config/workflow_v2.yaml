@@ -1,0 +1,211 @@
+# Configurazione Amazon Review Agent v2
+# Configuration-driven workflow per architettura LangGraph avanzata
+
+# === WORKFLOW CONFIGURATION ===
+workflow:
+  version: "2.0"
+  strategy: "incremental"  # full | incremental | quick_check | delta_only
+  
+  # Scheduling configuration
+  scheduling:
+    default_frequency: "monthly"
+    priority_asins: "bi-weekly"  
+    quick_checks: "weekly"
+    max_parallel_sessions: 3
+    
+  # Session limits
+  session:
+    max_duration_minutes: 120
+    max_asins_per_session: 20
+    timeout_seconds: 300
+    auto_checkpoint: true
+    
+  # Retry configuration
+  retry:
+    max_retries: 3
+    backoff_multiplier: 2.0
+    base_delay_seconds: 1.0
+
+# === SCRAPING CONFIGURATION ===
+scraping:
+  max_reviews_per_asin: 500
+  login_required: true
+  headless_mode: true
+  anti_detection: true
+  
+  # Browser settings
+  browser:
+    viewport_width: 1366
+    viewport_height: 768
+    timeout_seconds: 30
+    delay_range: [2, 5]
+    
+  # Incremental settings
+  incremental:
+    min_new_reviews_threshold: 5
+    delta_significance_threshold: 20
+    force_check_after_hours: 168  # 1 week
+    
+# === LLM CONFIGURATION ===
+llm:
+  # Primary model
+  primary_model: "llama3.1:8b"
+  fallback_model: "llama3:8b"
+  
+  # Provider settings
+  ollama:
+    base_url: "http://localhost:11434"
+    temperature: 0.3
+    timeout_seconds: 60
+    
+  # Analysis settings
+  analysis:
+    batch_size: 50
+    confidence_threshold: 0.7
+    enable_trend_analysis: true
+    parallel_processing: false
+
+# === INTEGRATIONS ===
+integrations:
+  # Google Sheets
+  google_sheets:
+    credentials_path: "/app/config/credentials.json"
+    spreadsheet_url: ""  # To be configured
+    auto_update: true
+    
+  # Slack notifications  
+  slack:
+    webhook_url: ""  # To be configured
+    enable_notifications: true
+    notification_level: "summary"  # all | errors | summary | none
+    
+  # LangSmith tracing
+  langsmith:
+    enabled: true
+    project_name: "amazon-review-audit"
+    api_key: "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"  # To be configured
+    endpoint: "https://api.smith.langchain.com"
+
+# === OBSERVABILITY ===
+observability:
+  logging:
+    level: "INFO"  # DEBUG | INFO | WARNING | ERROR
+    file_rotation: "10 MB"
+    retention_days: 7
+    
+  metrics:
+    enabled: true
+    export_interval_seconds: 60
+    
+  monitoring:
+    health_check_interval: 300
+    alert_on_consecutive_failures: 3
+
+# === PERSISTENCE ===
+persistence:
+  checkpoints:
+    enabled: true
+    base_path: "/app/output/state"
+    cleanup_after_days: 7
+    
+  reviews_database:
+    enabled: true
+    path: "/app/output/reviews_cache.json"
+    backup_interval_hours: 24
+
+# === SECURITY ===
+security:
+  # Login credentials (use environment variables in production)
+  amazon_credentials:
+    email: "${AMAZON_EMAIL}"
+    password: "${AMAZON_PASSWORD}"
+    totp_secret: "${AMAZON_TOTP_SECRET}"
+    
+  # Rate limiting
+  rate_limiting:
+    requests_per_minute: 10
+    concurrent_sessions: 2
+    
+# === QUALITY ASSURANCE ===
+quality_assurance:
+  validation:
+    min_reviews_for_analysis: 10
+    max_analysis_age_hours: 48
+    
+  testing:
+    mock_mode: false
+    test_asins: ["B08N5WRWNW", "B07XJ8C8F5"]
+    
+# === FEATURE FLAGS ===
+features:
+  enable_autonomous_navigation: true
+  enable_incremental_intelligence: true 
+  enable_advanced_llm: true
+  enable_trend_analysis: true
+  enable_multi_model_fallback: true
+  enable_structured_output: true
+
+# === ENVIRONMENT SPECIFIC ===
+environments:
+  development:
+    workflow:
+      strategy: "quick_check"
+    scraping:
+      max_reviews_per_asin: 20
+      headless_mode: false
+    llm:
+      primary_model: "llama3:8b"
+    observability:
+      logging:
+        level: "DEBUG"
+        
+  production:
+    workflow:
+      strategy: "incremental"
+    scraping:
+      max_reviews_per_asin: 500
+      headless_mode: true
+    observability:
+      logging:
+        level: "INFO"
+      monitoring:
+        health_check_interval: 60
+
+# === ASIN PRIORITIZATION ===
+prioritization:
+  high_priority:
+    criteria:
+      - new_reviews_count > 50
+      - sentiment_change > 0.2
+      - rating_drop > 0.3
+    frequency: "daily"
+    
+  medium_priority:
+    criteria:
+      - new_reviews_count > 20
+      - has_trending_keywords: true
+    frequency: "weekly"
+    
+  low_priority:
+    criteria:
+      - new_reviews_count > 5
+    frequency: "monthly"
+
+# === ALERTS ===
+alerts:
+  sentiment_drop:
+    threshold: -0.3
+    severity: "high"
+    
+  rating_drop:
+    threshold: -0.5
+    severity: "critical"
+    
+  processing_failures:
+    consecutive_count: 3
+    severity: "medium"
+    
+  system_health:
+    memory_threshold_mb: 1024
+    disk_threshold_gb: 2
+    severity: "low"

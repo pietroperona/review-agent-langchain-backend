@@ -1,0 +1,35 @@
+# LangChain e LangGraph - versioni aggiornate gennaio 2025
+langchain>=0.3.15
+langgraph>=0.2.45
+langchain-community>=0.3.15
+langchain-core>=0.3.29
+langchain-ollama>=0.3.6
+langsmith>=0.4.14
+
+# Web scraping
+playwright>=1.50.0
+
+# OpenAI (opzionale, via LLM_PROVIDER)
+langchain-openai>=0.2.2
+
+# Google Sheets
+gspread>=6.1.4
+google-auth>=2.35.0
+
+# Slack
+slack-sdk>=3.36.0
+
+# Utilità
+pydantic>=2.11.7
+pyyaml>=6.0.2
+python-dotenv>=1.0.1
+pyotp>=2.9.0
+
+# Per toolkit ottimizzato
+aiofiles>=24.1.0
+
+# Logging e debugging
+loguru>=0.7.3
+fastapi>=0.112.0
+uvicorn>=0.30.0
+sse-starlette>=2.1.3
