@@ -35,10 +35,17 @@ class JobManager:
     async def run_job(self, job: Job):
         job.status = "running"
         # Passa emitter al workflow
+        try:
+            print(f"[JobManager] run_job id={job.id} options={job.options}")
+        except Exception:
+            pass
         wf = AmazonBatchWorkflow(
             max_reviews=job.options.get("max_reviews", 15),
             delay_between_asins=job.options.get("delay_between_asins", 0.0),
             emitter=job.emitter,
+            job_id=job.id,
+            user_id=job.options.get("user_id"),
+            user_email=job.options.get("user_email"),
         )
         # Headless toggle via env
         if "headless" in job.options:

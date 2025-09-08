@@ -63,6 +63,7 @@ class BatchState(TypedDict):
     # Report corrente e cumulativo
     final_report: Optional[Dict[str, Any]]
     results: List[Dict[str, Any]]
+    txt_paths: Dict[str, str]
 
     # Controllo flusso
     retries: int
@@ -111,7 +112,15 @@ from typing import Callable, Awaitable
 class AmazonBatchWorkflow:
     """Workflow LangGraph per processare più ASIN con una sola sessione"""
 
-    def __init__(self, max_reviews: int = 15, delay_between_asins: float = 0.0, emitter: Optional[Callable[[Dict[str, Any]], Awaitable[None]]] = None):
+    def __init__(
+        self,
+        max_reviews: int = 15,
+        delay_between_asins: float = 0.0,
+        emitter: Optional[Callable[[Dict[str, Any]], Awaitable[None]]] = None,
+        job_id: Optional[str] = None,
+        user_id: Optional[str] = None,
+        user_email: Optional[str] = None,
+    ):
         self.nodes = AmazonHybridNodes()  # riusa LLM e report node esistenti
         self.max_reviews = max_reviews
         # Delay opzionale tra ASIN per simulare comportamento umano
@@ -120,6 +129,9 @@ class AmazonBatchWorkflow:
         except Exception:
             self.delay_between_asins = delay_between_asins
         self._emitter = emitter
+        self._job_id = job_id or f"batch_{uuid.uuid4().hex[:8]}"
+        self._user_id = user_id
+        self._user_email = user_email
 
     async def emit(self, event: Dict[str, Any]):
         if self._emitter is not None:
@@ -352,6 +364,27 @@ class AmazonBatchWorkflow:
                     json.dump(report, f, indent=2, ensure_ascii=False)
                 logger.info(f"📁 [SAVE] Report salvato: {path}")
                 await self.emit({"step": "report_saved", "asin": asin, "status": "done", "path": path})
+                # Generate TXT and upload to Supabase Storage
+                try:
+                    from api.utils import report_json_to_txt  # type: ignore
+                    from api.supabase_upload import upload_file  # type: ignore
+                    txt = report_json_to_txt(report)
+                    txt_name = f"report_{asin}.txt"
+                    storage_path = upload_file(
+                        user_id=self._user_id,
+                        job_id=self._job_id,
+                        file_bytes=txt.encode("utf-8"),
+                        filename=txt_name,
+                        content_type="text/plain; charset=utf-8",
+                    )
+                    if storage_path:
+                        logger.info(f"☁️  [SAVE] TXT caricato: {storage_path}")
+                        current_txt = dict(state.get("txt_paths") or {})
+                        current_txt[str(asin)] = storage_path
+                        # Do NOT return early; allow results to be appended below
+                        state["txt_paths"] = current_txt  # type: ignore[index]
+                except Exception as e:
+                    logger.warning(f"⚠️  [SAVE] TXT upload skipped: {e}")
             except Exception as e:
                 logger.error(f"❌ [SAVE] Errore salvataggio report: {e}")
                 path = None
@@ -371,7 +404,14 @@ class AmazonBatchWorkflow:
 
         current_results = list(state.get("results") or [])
         current_results.append(entry)
-        return {"results": current_results}
+        # Include any updated txt_paths from above in the return
+        updated = {"results": current_results}
+        try:
+            if state.get("txt_paths"):
+                updated["txt_paths"] = state.get("txt_paths")  # type: ignore[assignment]
+        except Exception:
+            pass
+        return updated
 
     async def advance_index(self, state: BatchState) -> Dict[str, Any]:
         # Delay opzionale tra ASIN per comportamento umano
@@ -406,6 +446,55 @@ class AmazonBatchWorkflow:
             await self.emit({"step": "done", "status": "done", "summary_path": summary_path})
         except Exception as e:
             logger.error(f"❌ [BATCH] Errore salvataggio sommario: {e}")
+
+        # Build and upload a single CSV to Supabase (best effort)
+        try:
+            import csv, io
+            from api import supabase_upload  # local module
+
+            results = list(state.get("results") or [])
+            if results:
+                sio = io.StringIO()
+                w = csv.writer(sio)
+                w.writerow(["asin", "title", "rating_average", "total_reviews", "reviews_extracted", "success", "errors"])
+                for r in results:
+                    w.writerow([
+                        r.get("asin", ""),
+                        r.get("title", ""),
+                        r.get("rating_average", 0.0),
+                        r.get("total_reviews", 0),
+                        r.get("reviews_extracted", 0),
+                        bool(r.get("success", False)),
+                        "; ".join(r.get("errors", []) or []),
+                    ])
+                csv_bytes = sio.getvalue().encode("utf-8")
+                filename = f"summary_{batch_id}.csv"
+                # include txt paths in meta so frontend can present TXT links
+                meta = {"batch_id": batch_id, "count": len(results), "user_email": self._user_email}
+                try:
+                    txt_paths = state.get("txt_paths") or {}
+                    if txt_paths:
+                        meta["txt_paths"] = txt_paths
+                        meta["asins"] = list(txt_paths.keys())
+                    else:
+                        meta["asins"] = [r.get("asin", "") for r in results if r.get("asin")]
+                except Exception:
+                    meta["asins"] = [r.get("asin", "") for r in results if r.get("asin")]
+
+                path = supabase_upload.upload_csv_and_record(
+                    user_id=self._user_id,
+                    job_id=self._job_id,
+                    csv_bytes=csv_bytes,
+                    filename=filename,
+                    asins=[r.get("asin", "") for r in results if r.get("asin")],
+                    meta=meta,
+                )
+                if path:
+                    logger.info(f"☁️  [BATCH] CSV caricato su Supabase: {path}")
+                else:
+                    logger.warning("⚠️  [BATCH] Upload CSV su Supabase non eseguito (verifica env/policy)")
+        except Exception as e:
+            logger.error(f"❌ [BATCH] Errore upload CSV Supabase: {e}")
 
         return {}
 
@@ -485,6 +574,7 @@ class AmazonBatchWorkflow:
             "theme_analysis": None,
             "final_report": None,
             "results": [],
+            "txt_paths": {},
             "retries": 0,
             "last_error": None,
         }

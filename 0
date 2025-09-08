@@ -1,0 +1,2 @@
+  PID TTY           TIME CMD
+88899 ??         0:01.52 /Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/Resources/Python.app/Contents/MacOS/Python -m uvicorn api.server:app --host 0.0.0.0 --port 8000
